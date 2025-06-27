@@ -1,6 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from datetime import datetime
-from zoneinfo import ZoneInfo  # Importamos ZoneInfo correctamente
+from zoneinfo import ZoneInfo
+from model import CustomerCreate, Transaction, Invoice, Customer
 
 app = FastAPI()
 
@@ -27,3 +28,34 @@ async def time(iso_code: str):
     timezone_str = country_timezones.get(iso_code, "UTC")
     tz = ZoneInfo(timezone_str)
     return {"time": datetime.now(tz)}
+
+#variable para almacenar los clientes emaulando una base de datos
+db_customers: list[Customer] = []
+@app.post("/customer", response_model=Customer)
+async def createCustomer(customer_data: CustomerCreate):
+    customer_id = len(db_customers) + 1
+    customer = Customer(id=customer_id, **customer_data.model_dump())
+    db_customers.append(customer)
+    return customer
+
+@app.get("/customers", response_model=list[Customer])
+async def getCustomers():
+  return db_customers
+
+@app.get("/customers/{id}", response_model=Customer)
+async def getCustomers(id: int):
+  for customer in db_customers:
+    if customer.id == id:
+      return customer
+
+  raise HTTPException(status_code=404, detail="Customer not found")
+
+
+
+@app.post("/transactions")
+async def createTransaction(transaction_data: Transaction):
+    return transaction_data
+
+@app.post("/invoices")
+async def createInvoices(invoice_data: Invoice):
+    return invoice_data
