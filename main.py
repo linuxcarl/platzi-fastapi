@@ -2,8 +2,12 @@ from fastapi import FastAPI, HTTPException
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from model import CustomerCreate, Transaction, Invoice, Customer
+from db import SessionDependency, create_all_tables
+from sqlmodel import select
 
-app = FastAPI()
+
+
+app = FastAPI(lifespan=create_all_tables)
 
 @app.get("/")
 async def root():
@@ -32,15 +36,20 @@ async def time(iso_code: str):
 #variable para almacenar los clientes emaulando una base de datos
 db_customers: list[Customer] = []
 @app.post("/customer", response_model=Customer)
-async def createCustomer(customer_data: CustomerCreate):
-    customer_id = len(db_customers) + 1
-    customer = Customer(id=customer_id, **customer_data.model_dump())
-    db_customers.append(customer)
+async def createCustomer(customer_data: CustomerCreate, session: SessionDependency):
+    #customer_id = len(db_customers) + 1
+    #customer = Customer(id=customer_id, **customer_data.model_dump())
+    #db_customers.append(customer)
+    customer = Customer.model_validate(customer_data)
+    session.add(customer)
+    session.commit()
+    session.refresh(customer)
     return customer
 
 @app.get("/customers", response_model=list[Customer])
-async def getCustomers():
-  return db_customers
+async def getCustomers(session: SessionDependency):
+  customers = session.exec(select(Customer)).all()
+  return customers
 
 @app.get("/customers/{id}", response_model=Customer)
 async def getCustomers(id: int):
@@ -49,8 +58,6 @@ async def getCustomers(id: int):
       return customer
 
   raise HTTPException(status_code=404, detail="Customer not found")
-
-
 
 @app.post("/transactions")
 async def createTransaction(transaction_data: Transaction):
