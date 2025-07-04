@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, status
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from model import CustomerCreate, Transaction, Invoice, Customer
+from model import CustomerCreate,CustomerUpdate,Transaction, Invoice, Customer
 from db import SessionDependency, create_all_tables
 from sqlmodel import select
 
@@ -33,18 +33,7 @@ async def time(iso_code: str):
     tz = ZoneInfo(timezone_str)
     return {"time": datetime.now(tz)}
 
-#variable para almacenar los clientes emaulando una base de datos
-db_customers: list[Customer] = []
-@app.post("/customer", response_model=Customer)
-async def createCustomer(customer_data: CustomerCreate, session: SessionDependency):
-    #customer_id = len(db_customers) + 1
-    #customer = Customer(id=customer_id, **customer_data.model_dump())
-    #db_customers.append(customer)
-    customer = Customer.model_validate(customer_data)
-    session.add(customer)
-    session.commit()
-    session.refresh(customer)
-    return customer
+
 
 @app.get("/customers", response_model=list[Customer])
 async def getCustomers(session: SessionDependency):
@@ -66,6 +55,28 @@ async def deleteCustomer(id: int, session: SessionDependency):
     session.delete(customer_db)
     session.commit()
     return None
+
+
+@app.post("/customer", response_model=Customer, status_code=status.HTTP_201_CREATED)
+async def createCustomer(customer_data: CustomerCreate, session: SessionDependency):
+    customer = Customer.model_validate(customer_data)
+    session.add(customer)
+    session.commit()
+    session.refresh(customer)
+    return customer
+
+@app.patch("/customer/{id}", response_model=Customer)
+async def updateCustomer(id: int, customer_data: CustomerUpdate, session: SessionDependency):
+  customer_db = session.get(Customer, id)
+  if not customer_db:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="customer not found")
+  customer_data_diccionary = customer_data.model_dump(exclude_unset=True)
+  customer_db.sqlmodel_update(customer_data_diccionary)
+  session.add(customer_db)
+  session.commit()
+  session.refresh(customer_db)
+  return customer_db
+
 
 @app.post("/transactions")
 async def createTransaction(transaction_data: Transaction):
